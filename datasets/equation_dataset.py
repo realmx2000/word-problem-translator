@@ -12,16 +12,21 @@ class EquationDataset(Dataset):
             names: Names of the JSON files to load as the dataset.
         """
         PREFIX = 'data/microsoft/'
-        questions = []
-        equations = []
-        #embeddings = gensim.models.Word2Vec.load_word2vec_format('data/embeddings/GoogleNews-vectors-negative300.bin', binary=True)
+        self.questions = []
+        self.equations = []
         for filename in names:
             with open(PREFIX + filename, 'r') as file:
                 data = json.load(file)
             for example in data:
-                questions.append(data['sQuestion'].split(' '))
-                equations.append(data['lEquations'].split(' '))
+                question = data['sQuestion'].split(' ')
+                equation = data['lEquations']
 
+                num_index = 0
+                for idx, word in enumerate(question):
+                    if word.isnumeric():
+                        question[idx] = 'n' + str(num_index)
 
+    def __getitem__(self, idx):
+        return self.questions[idx], self.equations[idx]
 if __name__ == '__main__':
     EquationDataset(['kushman.json'])
