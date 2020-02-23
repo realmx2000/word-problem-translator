@@ -5,7 +5,7 @@ import re
 
 from torch.utils.data import Dataset
 
-class EquationDataset(Dataset):
+class TokenizeDataset(Dataset):
     def __init__(self, names: list):
         """
         Args:
@@ -24,15 +24,16 @@ class EquationDataset(Dataset):
                 question = example['sQuestion']
                 equation_system = example['lEquations']
 
-                const_dict = self.replace_constants(question, {})
+                question, const_dict = self.replace_constants(question, {})
                 question = question.split(' ')
 
                 var_label = 'a'
                 var_dict = {}
-                for equation in equation_system:
-                    var_dict = self.replace_variables(equation, var_dict, var_label)
+                for idx, equation in enumerate(equation_system):
+                    equation, var_dict = self.replace_variables(equation, var_dict, var_label)
 
-                    self.replace_constants(equation, const_dict)
+                    equation, _ = self.replace_constants(equation, const_dict)
+                    equation_system[idx] = equation
 
                 self.questions.append(question)
                 self.equations.append(equation_system)
@@ -40,7 +41,7 @@ class EquationDataset(Dataset):
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
     @staticmethod
-    def replace_constants(string: str, const_dict: dict, const_label: int) -> dict:
+    def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
         '''
         Replace all numeric constants in the string with number tokens.
         Args:
@@ -50,11 +51,12 @@ class EquationDataset(Dataset):
             const_label: The constant token to start from for unseen constants
 
         Returns:
+            string: the string with constants replaced.
             const_dict: updated dictionary of constant -> number token mappings.
         '''
         # Replace all numeric constants with number tokens.
-        constant_re = re.compile('[0-9.]+')
-        constants = constant_re.finditer(string)
+        constant_re = re.compile('[0-9][0-9.]*')
+        constants = reversed(list(constant_re.finditer(string)))
         for match in constants:
             const_val = float(match.group())
             if const_val in const_dict:
@@ -63,21 +65,9 @@ class EquationDataset(Dataset):
                 constant = '<n' + str(const_label) + '>'
                 const_label += 1
                 const_dict[const_val] = constant
-            string = string[:match.start()] + constant + string[match.end()]
+            string = string[:match.start()] + constant + string[match.end():]
 
-        return const_dict
-        '''
-        num_index = 0
-        const_dict = {}
-        for idx, word in enumerate(str):
-            if word.isnumeric():
-                if word not in const_dict:
-                    token = '<n' + str(num_index) + '>'
-                    str[idx] = token
-                    const_dict[float(word)] = token
-                else:
-                    str[idx] = const_dict[float(word)]
-        '''
+        return string, const_dict
 
     @staticmethod
     def replace_variables(equation: str, var_dict: dict, var_label: str):
@@ -89,11 +79,12 @@ class EquationDataset(Dataset):
             var_label: the label to start from for unseen variables.
 
         Returns:
+            equation: the equation with variables replaced
             var_dict: the mapping of variables to variable tokens.
         """
-        variable_re = re.compile('[^0-9.()+\-*/^]+')
+        variable_re = re.compile('[^0-9.()+\-*/^=]+')
 
-        variables = variable_re.finditer(equation)
+        variables = reversed(list(variable_re.finditer(equation)))
         for match in variables:
             var_name = match.group()
             if var_name in var_dict:
@@ -103,7 +94,7 @@ class EquationDataset(Dataset):
                 var_dict[var_name] = var
                 var_label = chr(ord(var_label) + 1)
             equation = equation[:match.start()] + var + equation[match.end():]
-        return var_dict
+        return equation, var_dict
 
     def __getitem__(self, idx):
         return self.questions[idx], self.equations[idx]
@@ -112,4 +103,12 @@ class EquationDataset(Dataset):
         return len(self.questions)
 
 if __name__ == '__main__':
-    EquationDataset(['kushman.json'])
+    prob = input('Enter problem: ')
+    eq = input('Enter equation: ')
+    prob, const_dict = EquationDataset.replace_constants(prob, {})
+    print(prob)
+    print(const_dict)
+    eq, var_dict = EquationDataset.replace_variables(eq, {}, 'a')
+    eq, _ = EquationDataset.replace_constants(eq, const_dict, 0)
+    print(eq)
+    print(var_dict)
