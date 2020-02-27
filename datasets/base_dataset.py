@@ -5,18 +5,25 @@ import re
 
 from torch.utils.data import Dataset
 
-class TokenizeDataset(Dataset):
+class BaseDataset(Dataset):
     def __init__(self, names: list):
         """
         Args:
             names: Names of the JSON files to load as the dataset.
         """
-        PREFIX = 'data/microsoft/'
         self.questions = []
         self.equations = []
         self.max_num_variables = 0
         self.max_num_constants = 0
 
+        self.create_dataset(names)
+
+    def create_dataset(self, names: list):
+        """
+        Args:
+            names: Names of the JSON files to load as dataset.
+        """
+        PREFIX = 'data/microsoft/'
         for filename in names:
             with open(PREFIX + filename, 'r') as file:
                 data = json.load(file)
@@ -62,7 +69,7 @@ class TokenizeDataset(Dataset):
             if const_val in const_dict:
                 constant =  const_dict[const_val]
             else:
-                constant = '<n' + str(const_label) + '>'
+                constant = str(const_label)
                 const_label += 1
                 const_dict[const_val] = constant
             string = string[:match.start()] + constant + string[match.end():]
@@ -103,12 +110,17 @@ class TokenizeDataset(Dataset):
         return len(self.questions)
 
 if __name__ == '__main__':
+    '''
     prob = input('Enter problem: ')
     eq = input('Enter equation: ')
-    prob, const_dict = EquationDataset.replace_constants(prob, {})
+    prob, const_dict = BaseDataset.replace_constants(prob, {})
     print(prob)
     print(const_dict)
-    eq, var_dict = EquationDataset.replace_variables(eq, {}, 'a')
-    eq, _ = EquationDataset.replace_constants(eq, const_dict, 0)
+    eq, var_dict = BaseDataset.replace_variables(eq, {}, 'a')
+    eq, _ = BaseDataset.replace_constants(eq, const_dict, 0)
     print(eq)
     print(var_dict)
+    '''
+    dataset = BaseDataset(['kushman.json'])
+    print(dataset.max_num_constants)
+    print(dataset.max_num_variables)
