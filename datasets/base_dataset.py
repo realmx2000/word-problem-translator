@@ -49,7 +49,7 @@ class BaseDataset(Dataset):
 
                 concat_equation = ''
                 for equation in equation_system:
-                    concat_equation += equation + ','
+                    concat_equation += ''.join(equation) + ','
 
                 self.questions.append(question)
                 self.equations.append(concat_equation[:-1])
