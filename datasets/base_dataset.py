@@ -32,6 +32,11 @@ class BaseDataset(Dataset):
                 question = example['sQuestion']
                 equation_system = example['lEquations']
 
+                question = question.split(' ')
+                for i, token in enumerate(question):
+                    if ',' in token and len(token) > 1:
+                        question[i] = token.replace(',', '')
+                question = ' '.join(question)
                 question, const_dict = self.replace_constants(question, {})
                 question = question.split(' ')
 
@@ -43,9 +48,10 @@ class BaseDataset(Dataset):
                     equation, _ = self.replace_constants(equation, const_dict)
                     equation_system[idx] = list(equation)
 
-                const_idxs = {}
-                for const in const_dict.values():
-                    const_idxs[const] = [i for i, x in enumerate(question) if x == const]
+                const_alignment_vec = torch.zeros(len(const_dict))
+                for _, name in const_dict.items():
+                    matches = [i for i, x in enumerate(question) if x == name]
+                    const_alignment_vec[int(name)] = float(matches[0])
 
                 concat_equation = ''
                 for equation in equation_system:
@@ -53,7 +59,7 @@ class BaseDataset(Dataset):
 
                 self.questions.append(question)
                 self.equations.append(concat_equation[:-1])
-                self.alignments.append(const_idxs)
+                self.alignments.append(const_alignment_vec)
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
@@ -72,7 +78,7 @@ class BaseDataset(Dataset):
             const_dict: updated dictionary of constant -> number token mappings.
         '''
         # Replace all numeric constants with number tokens.
-        constant_re = re.compile('[0-9][0-9.]*')
+        constant_re = re.compile(' [0-9][0-9.]* ')
         constants = reversed(list(constant_re.finditer(string)))
         for match in constants:
             const_val = float(match.group())
@@ -82,7 +88,7 @@ class BaseDataset(Dataset):
                 constant = str(const_label)
                 const_label += 1
                 const_dict[const_val] = constant
-            string = string[:match.start()] + constant + string[match.end():]
+            string = string[:match.start() + 1] + constant + string[match.end() - 1:]
 
         return string, const_dict
 
@@ -131,7 +137,7 @@ if __name__ == '__main__':
     print(eq)
     print(var_dict)
     '''
-    dataset = BaseDataset(['dolphin_t2_final.json'])
+    dataset = BaseDataset(['kushman.json'])
     import ipdb
     ipdb.set_trace()
     print(dataset.max_num_constants)
