@@ -47,8 +47,12 @@ class BaseDataset(Dataset):
                 for const in const_dict.values():
                     const_idxs[const] = [i for i, x in enumerate(question) if x == const]
 
+                concat_equation = ''
+                for equation in equation_system:
+                    concat_equation += equation + ','
+
                 self.questions.append(question)
-                self.equations.append(equation_system)
+                self.equations.append(concat_equation[:-1])
                 self.alignments.append(const_idxs)
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
@@ -127,6 +131,9 @@ if __name__ == '__main__':
     print(eq)
     print(var_dict)
     '''
-    dataset = BaseDataset(['kushman.json'])
+    dataset = BaseDataset(['dolphin_t2_final.json'])
+    import ipdb
+    ipdb.set_trace()
     print(dataset.max_num_constants)
     print(dataset.max_num_variables)
+    print(len(dataset))
