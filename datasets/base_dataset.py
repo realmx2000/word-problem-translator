@@ -47,6 +47,18 @@ class BaseDataset(Dataset):
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
+        with open('train_questions.csv', 'w') as f:
+            for question in self.questions:
+                for word in question:
+                    f.write("%s\t" % (word))
+                f.write('\n')
+
+        with open('train_equations.csv', 'w') as f:
+            for equation in self.equations:
+                for token in equation:
+                    f.write("%s\t" % (token))
+                f.write('\n')
+
     @staticmethod
     def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
         '''

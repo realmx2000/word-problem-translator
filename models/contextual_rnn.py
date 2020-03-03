@@ -20,4 +20,4 @@ class ContextualRNN(ContextualEmbeddingModel):
 
         if model_type == 'lstm':
             self.encoder =
-            self.decoder = 
+            self.decoder =
