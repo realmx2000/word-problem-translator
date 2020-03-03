@@ -13,6 +13,7 @@ class BaseDataset(Dataset):
         """
         self.questions = []
         self.equations = []
+        self.alignments = []
         self.max_num_variables = 0
         self.max_num_constants = 0
 
@@ -40,24 +41,17 @@ class BaseDataset(Dataset):
                     equation, var_dict = self.replace_variables(equation, var_dict, var_label)
 
                     equation, _ = self.replace_constants(equation, const_dict)
-                    equation_system[idx] = equation
+                    equation_system[idx] = list(equation)
+
+                const_idxs = {}
+                for const in const_dict.values():
+                    const_idxs[const] = [i for i, x in enumerate(question) if x == const]
 
                 self.questions.append(question)
                 self.equations.append(equation_system)
+                self.alignments.append(const_idxs)
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
-
-        with open('train_questions.csv', 'w') as f:
-            for question in self.questions:
-                for word in question:
-                    f.write("%s\t" % (word))
-                f.write('\n')
-
-        with open('train_equations.csv', 'w') as f:
-            for equation in self.equations:
-                for token in equation:
-                    f.write("%s\t" % (token))
-                f.write('\n')
 
     @staticmethod
     def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
@@ -116,7 +110,7 @@ class BaseDataset(Dataset):
         return equation, var_dict
 
     def __getitem__(self, idx):
-        return self.questions[idx], self.equations[idx]
+        return self.questions[idx], self.equations[idx], self.alignments[idx]
 
     def __len__(self):
         return len(self.questions)
