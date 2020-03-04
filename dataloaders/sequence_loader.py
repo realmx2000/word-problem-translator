@@ -25,12 +25,15 @@ class SequenceLoader(DataLoader):
         questions = []
         equations = []
         alignments = []
+        solutions = []
         for example in batch:
             questions.append(example[0])
             equations.append(example[1])
             alignments.append(example[2])
+            solutions.append(example[3])
 
         packed_questions = self.pack_and_pad(questions, self.pad_val_src)
         packed_equations = self.pack_and_pad(equations, self.pad_val_tgt)
         packed_alignments = self.pack_and_pad(alignments, -1)
+        packed_solutions = self.pack_and_pad(solutions, float('nan'))
         return packed_questions, packed_equations, packed_alignments
