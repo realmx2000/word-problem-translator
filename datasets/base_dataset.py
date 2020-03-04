@@ -46,7 +46,7 @@ class BaseDataset(Dataset):
                 equation_system = example['lEquations']
 
                 # Remove commas in numbers
-                question = question.split(' ')
+                question = question.replace('-', ' ').split(' ')
                 for i, token in enumerate(question):
                     if ',' in token and len(token) > 1:
                         question[i] = token.replace(',', '')
@@ -60,14 +60,21 @@ class BaseDataset(Dataset):
                 # Replace variables and constants in equation system
                 var_label = 'a'
                 var_dict = {}
+                keep = True
                 for idx, equation in enumerate(equation_system):
                     equation, var_dict = self.replace_variables(equation, var_dict, var_label)
 
-                    equation, _ = self.replace_constants(equation, const_dict)
+                    equation, updated_consts = self.replace_constants(equation, const_dict)
+                    # Drop the example if there are constants in the equation we didn't identify.
+                    # TODO: Find a better way to process these.
+                    if len(updated_consts) != len(const_dict):
+                        keep = False
                     equation_system[idx] = list(equation)
 
                 # Compute the alignments between constants and tokens
                 const_alignment_vec = torch.zeros(len(const_dict))
+                if not keep or (len(const_dict.items()) == 0):
+                    continue
                 for _, name in const_dict.items():
                     matches = [i for i, x in enumerate(question) if x == name]
                     const_alignment_vec[int(name)] = float(matches[0])
