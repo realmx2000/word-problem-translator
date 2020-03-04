@@ -16,6 +16,7 @@ class BaseDataset(Dataset):
         self.questions = []
         self.equations = []
         self.alignments = []
+        self.solutions = []
         self.src_vocab = None
         self.tgt_vocab = None
         self.max_num_variables = 0
@@ -44,6 +45,7 @@ class BaseDataset(Dataset):
             for example in data:
                 question = example['sQuestion']
                 equation_system = example['lEquations']
+                solution = example['lSolutions']
 
                 # Remove commas in numbers
                 question = question.replace('-', ' ').split(' ')
@@ -88,6 +90,7 @@ class BaseDataset(Dataset):
                 self.questions.append(question)
                 self.equations.append(concat_equation)
                 self.alignments.append(const_alignment_vec)
+                self.solutions.append(torch.tensor(solution))
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
@@ -161,7 +164,7 @@ class BaseDataset(Dataset):
         self.equations = [torch.tensor(equation) for equation in self.tgt_vocab.words2indices(self.equations)]
 
     def __getitem__(self, idx):
-        return self.questions[idx], self.equations[idx], self.alignments[idx]
+        return self.questions[idx], self.equations[idx], self.alignments[idx], self.solutions[idx]
 
     def __len__(self):
         return len(self.questions)
