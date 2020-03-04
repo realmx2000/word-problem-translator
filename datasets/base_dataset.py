@@ -2,8 +2,10 @@ import torch
 import numpy as np
 import json
 import re
+from itertools import chain
 
 from torch.utils.data import Dataset
+from .vocab import VocabEntry
 
 class BaseDataset(Dataset):
     def __init__(self, names: list):
@@ -14,15 +16,26 @@ class BaseDataset(Dataset):
         self.questions = []
         self.equations = []
         self.alignments = []
+        self.src_vocab = None
+        self.tgt_vocab = None
         self.max_num_variables = 0
         self.max_num_constants = 0
 
         self.create_dataset(names)
+        self.create_vocabs_and_convert()
 
     def create_dataset(self, names: list):
         """
         Args:
             names: Names of the JSON files to load as dataset.
+
+        End State:
+            self.questions will be a list of lists, the outer list containing questions, and
+            the inner lists containing the individual words/tokens in those questions.
+            self.equations will also be a list of lists, the outer list containing systems of
+            equations, delimited by commas, and the inner list containing individual characters.
+            self.alignments will be a list of tensors, each tensor representing a map from a token
+            representing a constant to the constant's position in the question text.
         """
         PREFIX = 'data/microsoft/'
         for filename in names:
@@ -32,14 +45,19 @@ class BaseDataset(Dataset):
                 question = example['sQuestion']
                 equation_system = example['lEquations']
 
+                # Remove commas in numbers
                 question = question.split(' ')
                 for i, token in enumerate(question):
                     if ',' in token and len(token) > 1:
                         question[i] = token.replace(',', '')
                 question = ' '.join(question)
+                question = '<s> ' + question + ' </s>'
+
+                # Replace constants and tokenize by word
                 question, const_dict = self.replace_constants(question, {})
                 question = question.split(' ')
 
+                # Replace variables and constants in equation system
                 var_label = 'a'
                 var_dict = {}
                 for idx, equation in enumerate(equation_system):
@@ -48,6 +66,7 @@ class BaseDataset(Dataset):
                     equation, _ = self.replace_constants(equation, const_dict)
                     equation_system[idx] = list(equation)
 
+                # Compute the alignments between constants and tokens
                 const_alignment_vec = torch.zeros(len(const_dict))
                 for _, name in const_dict.items():
                     matches = [i for i, x in enumerate(question) if x == name]
@@ -57,8 +76,10 @@ class BaseDataset(Dataset):
                 for equation in equation_system:
                     concat_equation += ''.join(equation) + ','
 
+                concat_equation = ['<s>'] + list(concat_equation[:-1]) + ['</s>']
+
                 self.questions.append(question)
-                self.equations.append(concat_equation[:-1])
+                self.equations.append(concat_equation)
                 self.alignments.append(const_alignment_vec)
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
@@ -118,6 +139,19 @@ class BaseDataset(Dataset):
                 var_label = chr(ord(var_label) + 1)
             equation = equation[:match.start()] + var + equation[match.end():]
         return equation, var_dict
+
+    def create_vocabs_and_convert(self):
+        """
+        Creates the index vocabularies for the data and converts self.questions and self.equations to
+        be lists of tensors of indices instead of lists of lists of tokens.
+        """
+        question_corpus = list(chain.from_iterable(self.questions))
+        self.src_vocab = VocabEntry.from_corpus(question_corpus, len(question_corpus), 1)
+        equation_corpus = list(chain.from_iterable(self.equations))
+        self.tgt_vocab = VocabEntry.from_corpus(equation_corpus, len(equation_corpus), 1)
+
+        self.questions = [torch.tensor(question) for question in self.src_vocab.words2indices(self.questions)]
+        self.equations = [torch.tensor(equation) for equation in self.tgt_vocab.words2indices(self.equations)]
 
     def __getitem__(self, idx):
         return self.questions[idx], self.equations[idx], self.alignments[idx]

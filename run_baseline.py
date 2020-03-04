@@ -1,17 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-
-from torchtext.datasets import TranslationDataset, Multi30k
-from torchtext.data import Field, BucketIterator
-
-from torch.utils import data
-
 import numpy as np
-import spacy
 
 import random
 import math
@@ -20,14 +12,12 @@ import sys, os
 sys.path.append(os.path.join(sys.path[0],'baseline'))
 
 from datasets.base_dataset import BaseDataset
-from datasets.tokenized_dataset import TokenizedDataset
-
 
 from baseline.baseline_attention import Attention
 from baseline.baseline_decoder import Decoder
 from baseline.baseline_encoder import Encoder
 from baseline.baseline_model import Seq2Seq
-from baseline.vocab import VocabEntry
+from datasets.vocab import VocabEntry
 
 SEED = 1000
 
@@ -67,21 +57,7 @@ train_data = dataset
 #valid_data = src_vocab.to_input_tensor(valid_data, device)
 #test_data = src_vocab.to_input_tensor(test_data, device)
 
-def collate_fn_padd(batch):
-    '''
-    Padds batch of variable length
 
-    note: it converts things ToTensor manually here since the ToTensor transform
-    assume it takes in images rather than arbitrary tensors.
-    '''
-    ## get sequence lengths
-    lengths = torch.tensor([ t.shape[0] for t in batch ]).to(device)
-    ## padd
-    batch = [ torch.Tensor(t).to(device) for t in batch ]
-    batch = torch.nn.utils.rnn.pad_sequence(batch)
-    ## compute mask
-    mask = (batch != 0).to(device)
-    return batch, lengths, mask
 
 train_iterator = DataLoader(train_data, batch_size=BATCH_SIZE, collate_fn=collate_fn_padd)
 '''

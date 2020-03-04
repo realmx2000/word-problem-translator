@@ -1,8 +1,6 @@
 
 from collections import Counter
-from docopt import docopt
 from itertools import chain
-import json
 import torch
 from typing import List
 import numpy as np
