@@ -33,8 +33,13 @@ def train(model, dataloader, optimizer, clip):
         #print(loss)
 
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
+
+        preds = logits.argmax(1).tolist()
+        labels_list = labels.tolist()
+        print(' '.join(dataloader.dataset.tgt_vocab.indices2words(preds)))
+        print(' '.join(dataloader.dataset.tgt_vocab.indices2words(labels_list)))
 
         epoch_loss += loss.item()
     return epoch_loss / len(dataloader)
@@ -69,9 +74,9 @@ if __name__ == '__main__':
     DEC_EMB_DIM = 256
     ENC_HID_DIM = 512
     DEC_HID_DIM = 512
-    DROPOUT = 0.5
-    FORCING_RATIO = 0.5
-    BATCH_SIZE = 8
+    DROPOUT = 0
+    FORCING_RATIO = 1
+    BATCH_SIZE = 1
 
     dataset = BaseDataset([dataset_file])
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
@@ -84,14 +89,14 @@ if __name__ == '__main__':
                     DROPOUT,
                     FORCING_RATIO)
 
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(), lr=1e-2)
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     print(f'The model has {count_parameters(model):,} trainable parameters')
     
-    N_EPOCHS = 10 #max number of epochs to train for
+    N_EPOCHS = 100 #max number of epochs to train for
     CLIP = 1
 
     best_validation_loss = float('inf')

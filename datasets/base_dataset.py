@@ -108,18 +108,23 @@ class BaseDataset(Dataset):
             string: the string with constants replaced.
             const_dict: updated dictionary of constant -> number token mappings.
         '''
-        # Replace all numeric constants with number tokens.
-        constant_re = re.compile(' [0-9][0-9.]* ')
+        question_mode = len(const_dict) == 0
+        # Replace all numeric constants with number tokens. Spaces need to be there in the question, but
+        # not in the equation.
+        constant_re = re.compile(' [0-9][0-9.]* ') if question_mode else re.compile('[0-9][0-9.]*')
         constants = reversed(list(constant_re.finditer(string)))
         for match in constants:
             const_val = float(match.group())
             if const_val in const_dict:
                 constant =  const_dict[const_val]
             else:
-                constant = str(const_label)
+                constant = str(int(const_label))
                 const_label += 1
                 const_dict[const_val] = constant
-            string = string[:match.start() + 1] + constant + string[match.end() - 1:]
+            if question_mode:
+                string = string[:match.start() + 1] + constant + string[match.end() - 1:]
+            else:
+                string = string[:match.start()] + constant + string[match.end():]
 
         return string, const_dict
 
