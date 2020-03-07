@@ -25,12 +25,13 @@ def train(model, dataloader, optimizer, clip):
     for i, batch in enumerate(dataloader):
         #print(i)
         optimizer.zero_grad()
-        equations, lengths = pad_packed_sequence(batch[1])
+        #equations, lengths = pad_packed_sequence(batch[1])
         logits, equations = model.forward(batch)
         logits = logits[1:].view(-1, logits.shape[-1])
         labels = equations[1:].view(-1)
         loss = cross_entropy(logits, labels)
         #print(loss)
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
