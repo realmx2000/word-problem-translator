@@ -158,7 +158,7 @@ class VocabEntry(object):
         @returns vocab_entry (VocabEntry): VocabEntry instance produced from provided corpus
         """
         vocab_entry = VocabEntry()
-        word_freq = Counter(chain(*corpus))
+        word_freq = Counter(corpus)
         valid_words = [w for w, v in word_freq.items() if v >= freq_cutoff]
         print('number of word types: {}, number of word types w/ frequency >= {}: {}'
               .format(len(word_freq), freq_cutoff, len(valid_words)))
