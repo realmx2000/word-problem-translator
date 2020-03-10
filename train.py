@@ -17,40 +17,47 @@ import math
 
 from docopt import docopt
 
+import torch.nn as nn
 from torch.nn.functional import cross_entropy
 from torch.nn.utils.rnn import pad_packed_sequence
 
-def train(model, dataloader, optimizer, clip):
+def train(model, dataloader, optimizer, criterion, clip):
     epoch_loss = 0
+    epoch_acc = 0
     for i, batch in enumerate(dataloader):
-        #print(i)
         optimizer.zero_grad()
         equations, lengths = pad_packed_sequence(batch[1])
-        logits, equations = model.forward(batch)
+        logits, outputs = model.forward(batch)
         logits = logits[1:].view(-1, logits.shape[-1])
         labels = equations[1:].view(-1)
-        loss = cross_entropy(logits, labels)
-        #print(loss)
+        loss = criterion(logits, labels)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
-
+        
         epoch_loss += loss.item()
     return epoch_loss / len(dataloader)
 
-def validate(model, dataloader):
+def validate(model, dataloader, VERBOSE=False):
     epoch_loss = 0
+    epoch_acc = 0
     with torch.no_grad():
         for i, batch in enumerate(dataloader):
-            optimizer.zero_grad()
             equations, lengths = pad_packed_sequence(batch[1])
-            logits, equations = model.forward(batch)
+            logits, outputs = model.forward(batch)
+            predicted = logits.argmax(-1)
             logits = logits[1:].view(-1, logits.shape[-1])
             labels = equations[1:].view(-1)
             loss = cross_entropy(logits, labels)
-            
+            predicted_list = torch.split(predicted, 1, dim=1)
+            tgt_vocab = dataloader.dataset.tgt_vocab
+
+            predicted_list = [tgt_vocab.indices2words(i.flatten().tolist()) for i in predicted_list]
+            if VERBOSE:
+                print("".join(predicted_list[0]))
             epoch_loss += loss.item()
-        return epoch_loss / len(dataloader)
+            epoch_acc += (predicted == equations).float().sum()
+        return epoch_loss / len(dataloader), epoch_acc / len(dataloader)
 
 def epoch_time(start_time, end_time):
     elapsed_time = end_time - start_time
@@ -63,6 +70,7 @@ if __name__ == '__main__':
     args = docopt(__doc__)
 
     dataset_file = args['--dataset']
+    VERBOSE = True
 
     ENC_EMB_DIM = 256
     DEC_EMB_DIM = 256
@@ -74,6 +82,7 @@ if __name__ == '__main__':
 
     dataset = BaseDataset([dataset_file])
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
+    criterion = nn.CrossEntropyLoss() #TODO: add ignore index for pad token?
     model = RNNModel(len(dataset.src_vocab),
                     len(dataset.tgt_vocab),
                     ENC_EMB_DIM,
@@ -83,14 +92,14 @@ if __name__ == '__main__':
                     DROPOUT,
                     FORCING_RATIO)
 
-    optimizer = optim.Adam(model.parameters())
+    optimizer = optim.Adam(model.parameters(),lr=1e-4)
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
     print(f'The model has {count_parameters(model):,} trainable parameters')
     
-    N_EPOCHS = 10 #max number of epochs to train for
+    N_EPOCHS = 1000 #max number of epochs to train for
     CLIP = 1
 
     best_validation_loss = float('inf')
@@ -99,20 +108,22 @@ if __name__ == '__main__':
     for epoch in range(N_EPOCHS):
         start_time = time.time()
 
-        training_loss = train(model, dataloader, optimizer, CLIP)
-        validation_loss = validate(model, dataloader) #TODO: don't use same dataloader for training and validation
+        training_loss = train(model, dataloader, optimizer, criterion, CLIP)
+        validation_loss, validation_acc = validate(model, dataloader, VERBOSE) #TODO: don't use same dataloader for training and validation
 
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
         if validation_loss < best_validation_loss:
             best_validation_loss = validation_loss
+            print("New lowest validation loss! Saving model in " + dataset_file + "_model.pt")
             torch.save(model.state_dict(), dataset_file + '_model.pt')
             #TODO: early stopping
         
         print(f'Epoch: {epoch:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {training_loss:.3f} | Train PPL: {math.exp(training_loss):7.3f}')
         print(f'\t Val. Loss: {validation_loss:.3f} |  Val. PPL: {math.exp(validation_loss):7.3f}')
+        print(f'\t Val. Acc: {validation_acc:.3f}')
 
 model.load_state_dict(torch.load(dataset_file + '_model.pt'))
 
