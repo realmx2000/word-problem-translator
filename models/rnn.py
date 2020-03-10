@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import random
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from .copy import Copy
 
 class RNNModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, src_embed_dim, tgt_embed_dim, enc_hid_dim,
@@ -26,6 +27,9 @@ class RNNModel(nn.Module):
         self.decoder = nn.GRU((enc_hid_dim * 2) + tgt_embed_dim, dec_hid_dim)
         self.dec_out = nn.Linear((enc_hid_dim * 2) + dec_hid_dim + tgt_embed_dim, tgt_vocab_size)
         self.dec_dropout = nn.Dropout(dropout)
+
+        #Copy
+        self.copy = Copy(enc_hid_dim * 2, enc_hid_dim * 2, tgt_embed_dim)
 
     def forward(self, x):
         questions, question_lengths = pad_packed_sequence(x[0])
@@ -53,11 +57,14 @@ class RNNModel(nn.Module):
             weighted = weighted.permute(1, 0, 2)
 
             # Decoder
+
             embedding = self.tgt_embedding(prev_output)
+            prob = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
             decoder_input = torch.cat((embedding, weighted), dim=2)
             output, dec_hidden = self.decoder(decoder_input, enc_projection.unsqueeze(0))
 
             logits = self.dec_out(torch.cat((output.squeeze(0), weighted.squeeze(0), embedding.squeeze(0)), dim=1))
+            #print(logits)
             logits = self.dec_dropout(logits)
             all_logits[idx,:,:] = logits
 
