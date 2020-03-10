@@ -87,6 +87,17 @@ if __name__ == '__main__':
 
     dataset = BaseDataset([dataset_file])
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
+
+    '''
+    print(dataset.questions)
+    questions = [q for q in dataset.src_vocab.indices2words(dataset.questions[0].tolist())]
+    equations = [e for e in dataset.tgt_vocab.indices2words(dataset.equations[0].tolist())]
+    print(questions)
+    print(equations)
+    print(dataset.alignments)
+    print(dataset.solutions)
+    '''
+
     criterion = nn.CrossEntropyLoss() #TODO: add ignore index for pad token?
     model = RNNModel(len(dataset.src_vocab),
                     len(dataset.tgt_vocab),

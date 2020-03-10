@@ -8,4 +8,4 @@ class Copy(nn.Module):
         self.w = nn.Linear(context_dim + hidden_dim + output_dim, 1)
 
     def forward(self, x):
-        return F.sigmoid(self.w(x))
+        return torch.sigmoid(self.w(x))

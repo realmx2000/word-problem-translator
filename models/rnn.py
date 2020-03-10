@@ -59,7 +59,13 @@ class RNNModel(nn.Module):
             # Decoder
 
             embedding = self.tgt_embedding(prev_output)
-            prob = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
+
+            prob_copy = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
+            token_attn = torch.index_select(attention_scores.flatten(), 0, alignments.view(-1).long())
+            token_attn = token_attn.view(-1, alignments.shape[0])
+            token_attn_sum = torch.sum(token_attn, dim=1)
+            copy_weight = token_attn / token_attn_sum # [batch size, num token length]
+
             decoder_input = torch.cat((embedding, weighted), dim=2)
             output, dec_hidden = self.decoder(decoder_input, enc_projection.unsqueeze(0))
 
