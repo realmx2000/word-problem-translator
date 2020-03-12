@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
     #dataset = BaseDataset([dataset_file])
     #dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
-    dataset = TokenizedDataset([dataset_file])
+    dataset = BaseDataset([dataset_file])
     dataset.convert()
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
     embedding_model = ContextualEmbeddingModel('bert', dataset.max_num_variables, dataset.max_num_constants)

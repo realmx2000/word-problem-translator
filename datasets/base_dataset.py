@@ -26,6 +26,8 @@ class BaseDataset(Dataset):
 
         self.create_dataset(names)
         self.create_vocabs()
+        import ipdb
+        ipdb.set_trace()
 
     def create_dataset(self, names: list):
         """
@@ -66,7 +68,7 @@ class BaseDataset(Dataset):
                 var_dict = {}
                 keep = True
                 for idx, equation in enumerate(equation_system):
-                    equation, var_dict = self.replace_variables(equation, var_dict, var_label)
+                    equation, var_dict = self.replace_variables(equation, var_dict, var_label, const_dict)
 
                     equation, updated_consts = self.replace_constants(equation, const_dict)
                     # Drop the example if there are constants in the equation we didn't identify.
@@ -137,7 +139,7 @@ class BaseDataset(Dataset):
         return string, const_dict
 
     @staticmethod
-    def replace_variables(equation: str, var_dict: dict, var_label: str):
+    def replace_variables(equation: str, var_dict: dict, var_label: str, const_dict: dict):
         """
         Replace the variables in an equation with variable tokens.
         Args:
@@ -154,6 +156,11 @@ class BaseDataset(Dataset):
         variables = reversed(list(variable_re.finditer(equation)))
         for match in variables:
             var_name = match.group()
+            try:
+                if float(var_name) in const_dict:
+                    continue
+            except:
+                pass
             if var_name in var_dict:
                 var = var_dict[var_name]
             else:
