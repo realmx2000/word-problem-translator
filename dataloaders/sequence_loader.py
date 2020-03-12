@@ -5,8 +5,8 @@ from torch.utils.data import DataLoader
 
 class SequenceLoader(DataLoader):
     def __init__(self, dataset, batch_size: int, phase: str):
-        self.pad_val_src = dataset.src_vocab['<pad>']
-        self.pad_val_tgt = dataset.tgt_vocab['<pad>']
+        self.pad_val_src = dataset.src_pad_token
+        self.pad_val_tgt = dataset.tgt_pad_token
         super().__init__(dataset,
                          batch_size,
                          shuffle=(phase == 'train'),

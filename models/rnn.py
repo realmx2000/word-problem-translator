@@ -7,13 +7,17 @@ from .copy import Copy
 
 class RNNModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, src_embed_dim, tgt_embed_dim, enc_hid_dim,
-                 dec_hid_dim, dropout, teacher_forcing_ratio):
+                 dec_hid_dim, dropout, teacher_forcing_ratio, src_embed_model=None):
         super().__init__()
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.tgt_vocab_size = tgt_vocab_size
 
         # Encoder
-        self.src_embedding = nn.Embedding(src_vocab_size, src_embed_dim)
+        if src_embed_model is None:
+            self.src_embedding = nn.Embedding(src_vocab_size, src_embed_dim)
+            self.src_embedding_lookup = self._src_embedding_wrapper
+        else:
+            self.src_embedding_lookup = src_embed_model
         self.encoder = nn.GRU(src_embed_dim, enc_hid_dim, bidirectional=True)
         self.enc_fc = nn.Linear(enc_hid_dim * 2, dec_hid_dim)
         self.enc_dropout = nn.Dropout(dropout)
@@ -27,17 +31,28 @@ class RNNModel(nn.Module):
         self.decoder = nn.GRU((enc_hid_dim * 2) + tgt_embed_dim, dec_hid_dim)
         self.dec_out = nn.Linear((enc_hid_dim * 2) + dec_hid_dim + tgt_embed_dim, tgt_vocab_size)
         self.dec_dropout = nn.Dropout(dropout)
+        self.softmax = nn.Softmax(dim=2)
 
         #Copy
         self.copy = Copy(enc_hid_dim * 2, enc_hid_dim * 2, tgt_embed_dim)
+
+    def _src_embedding_wrapper(self, x, mask):
+        return self.src_embedding(x)
+
+    def _tgt_embedding_lookup(self, x, mask):
+        return self.tgt_embedding(x)
 
     def forward(self, x):
         questions, question_lengths = pad_packed_sequence(x[0])
         equations, equation_lengths = pad_packed_sequence(x[1])
         alignments, alignment_lengths = pad_packed_sequence(x[2])
 
+        question_masks = torch.zeros_like(questions)
+        for i, length in enumerate(question_lengths):
+            question_masks[:length, i] = 1
+
         # Encoder
-        embeddings = self.src_embedding(questions)
+        embeddings = self.src_embedding_lookup(questions, question_masks)
         encoded, enc_hidden = self.encoder(embeddings)
         enc_projection = torch.tanh(self.enc_fc(torch.cat((enc_hidden[-2,:,:], enc_hidden[-1,:,:]), dim=1)))
         enc_projection = self.enc_dropout(enc_projection)
@@ -57,14 +72,13 @@ class RNNModel(nn.Module):
             weighted = weighted.permute(1, 0, 2)
 
             # Decoder
+            embedding = self._tgt_embedding_lookup(prev_output, None)
 
-            embedding = self.tgt_embedding(prev_output)
-
-            prob_copy = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
-            token_attn = torch.index_select(attention_scores.flatten(), 0, alignments.view(-1).long())
-            token_attn = token_attn.view(-1, alignments.shape[0])
-            token_attn_sum = torch.sum(token_attn, dim=1)
-            copy_weight = token_attn / token_attn_sum # [batch size, num token length]
+            #prob_copy = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
+            #token_attn = torch.index_select(attention_scores.flatten(), 0, alignments.view(-1).long())
+            #token_attn = token_attn.view(-1, alignments.shape[0])
+            #token_attn_sum = torch.sum(token_attn, dim=1)
+            #copy_weight = token_attn / token_attn_sum # [batch size, num token length]
 
             decoder_input = torch.cat((embedding, weighted), dim=2)
             output, dec_hidden = self.decoder(decoder_input, enc_projection.unsqueeze(0))
@@ -80,4 +94,4 @@ class RNNModel(nn.Module):
             prev_output = equations[idx] if teacher_force else logits.argmax(1)
             prev_output = prev_output.unsqueeze(0)
 
-        return all_logits, equations
+        return self.softmax(all_logits), all_logits, equations

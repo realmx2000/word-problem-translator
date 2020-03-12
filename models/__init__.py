@@ -1,1 +1,2 @@
 from .rnn import RNNModel
+from .contextual_embedding_model import ContextualEmbeddingModel

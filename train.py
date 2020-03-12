@@ -6,9 +6,9 @@ Options:
     --dataset=<file>                      dataset file, such as "kushman.json"
 """
 
-from datasets import BaseDataset
+from datasets import BaseDataset, TokenizedDataset
 from dataloaders import SequenceLoader
-from models import RNNModel
+from models import RNNModel, ContextualEmbeddingModel
 
 import torch.optim as optim
 import torch
@@ -18,24 +18,23 @@ import math
 from docopt import docopt
 
 import torch.nn as nn
-from torch.nn.functional import cross_entropy
 from torch.nn.utils.rnn import pad_packed_sequence
 
-def train(model, dataloader, optimizer, criterion, clip):
+def train(model, dataloader, optimizer):
     epoch_loss = 0
     epoch_acc = 0
+    loss_fn = nn.NLLLoss()
     for i, batch in enumerate(dataloader):
         optimizer.zero_grad()
-        equations, lengths = pad_packed_sequence(batch[1])
-        logits, equations = model.forward(batch)
-        logits = logits[1:].view(-1, logits.shape[-1])
+        probs, logits, equations = model.forward(batch)
+        probs = probs[1:].view(-1, logits.shape[-1])
         labels = equations[1:].view(-1)
-        loss = criterion(logits, labels)
+        loss = loss_fn(torch.log(probs), labels)
         loss.backward()
         #torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        preds = logits.argmax(1).tolist()
+        preds = logits[1:].argmax(2).squeeze(1).tolist()
         labels_list = labels.tolist()
         print(' '.join(dataloader.dataset.tgt_vocab.indices2words(preds)))
         print(' '.join(dataloader.dataset.tgt_vocab.indices2words(labels_list)))
@@ -77,7 +76,7 @@ if __name__ == '__main__':
     dataset_file = args['--dataset']
     VERBOSE = True
 
-    ENC_EMB_DIM = 256
+    ENC_EMB_DIM = 768
     DEC_EMB_DIM = 256
     ENC_HID_DIM = 512
     DEC_HID_DIM = 512
@@ -85,8 +84,13 @@ if __name__ == '__main__':
     FORCING_RATIO = 1
     BATCH_SIZE = 1
 
-    dataset = BaseDataset([dataset_file])
+
+    #dataset = BaseDataset([dataset_file])
+    #dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
+    dataset = TokenizedDataset([dataset_file])
+    dataset.convert()
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
+    embedding_model = ContextualEmbeddingModel('bert', dataset.max_num_variables, dataset.max_num_constants)
 
     '''
     print(dataset.questions)
@@ -98,7 +102,7 @@ if __name__ == '__main__':
     print(dataset.solutions)
     '''
 
-    criterion = nn.CrossEntropyLoss() #TODO: add ignore index for pad token?
+    #criterion = nn.CrossEntropyLoss() #TODO: add ignore index for pad token?
     model = RNNModel(len(dataset.src_vocab),
                     len(dataset.tgt_vocab),
                     ENC_EMB_DIM,
@@ -106,9 +110,10 @@ if __name__ == '__main__':
                     DEC_EMB_DIM,
                     DEC_HID_DIM,
                     DROPOUT,
-                    FORCING_RATIO)
+                    FORCING_RATIO,
+                     src_embed_model=embedding_model)
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-2)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3) # For RNN - 1e-2
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -124,22 +129,24 @@ if __name__ == '__main__':
     for epoch in range(N_EPOCHS):
         start_time = time.time()
 
-        training_loss = train(model, dataloader, optimizer, criterion, CLIP)
-        validation_loss, validation_acc = validate(model, dataloader, VERBOSE) #TODO: don't use same dataloader for training and validation
+        training_loss = train(model, dataloader, optimizer)
+        #validation_loss, validation_acc = validate(model, dataloader, VERBOSE) #TODO: don't use same dataloader for training and validation
 
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
 
+        '''
         if validation_loss < best_validation_loss:
             best_validation_loss = validation_loss
             print("New lowest validation loss! Saving model in " + dataset_file + "_model.pt")
             torch.save(model.state_dict(), dataset_file + '_model.pt')
             #TODO: early stopping
+        '''
         
         print(f'Epoch: {epoch:02} | Time: {epoch_mins}m {epoch_secs}s')
         print(f'\tTrain Loss: {training_loss:.3f} | Train PPL: {math.exp(training_loss):7.3f}')
-        print(f'\t Val. Loss: {validation_loss:.3f} |  Val. PPL: {math.exp(validation_loss):7.3f}')
-        print(f'\t Val. Acc: {validation_acc:.3f}')
+        #print(f'\t Val. Loss: {validation_loss:.3f} |  Val. PPL: {math.exp(validation_loss):7.3f}')
+        #print(f'\t Val. Acc: {validation_acc:.3f}')
 
 model.load_state_dict(torch.load(dataset_file + '_model.pt'))
 

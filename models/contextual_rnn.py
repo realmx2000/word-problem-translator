@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 
 from .contextual_embedding_model import ContextualEmbeddingModel
+from .rnn import RNNModel
 
-class ContextualRNN(ContextualEmbeddingModel):
+class ContextualRNN(ContextualEmbeddingModel, RNNModel):
     def __init__(self, embedding_type: str, model_type: str, max_num_variables: int, max_num_constants: int,
                  hidden_size=200, freeze_embeddings: bool=False):
         """
@@ -16,8 +17,6 @@ class ContextualRNN(ContextualEmbeddingModel):
             vocabular.
             freeze_embeddings: Whether or not to freeze the pretrained embeddings.
         """
-        super().__init__(embedding_type, max_num_variables, max_num_constants, freeze_embeddings)
+        super(ContextualEmbeddingModel, self).__init__(embedding_type, max_num_variables, max_num_constants, freeze_embeddings)
 
-        if model_type == 'lstm':
-            self.encoder =
-            self.decoder =
+

@@ -19,11 +19,13 @@ class BaseDataset(Dataset):
         self.solutions = []
         self.src_vocab = None
         self.tgt_vocab = None
+        self.src_pad_token = None
+        self.tgt_pad_token = None
         self.max_num_variables = 0
         self.max_num_constants = 0
 
         self.create_dataset(names)
-        self.create_vocabs_and_convert()
+        self.create_vocabs()
 
     def create_dataset(self, names: list):
         """
@@ -73,13 +75,11 @@ class BaseDataset(Dataset):
                         keep = False
                     equation_system[idx] = list(equation)
 
-                # Compute the alignments between constants and tokens
-                const_alignment_vec = torch.zeros(len(const_dict))
                 if not keep or (len(const_dict.items()) == 0):
                     continue
-                for _, name in const_dict.items():
-                    matches = [i for i, x in enumerate(question) if x == name]
-                    const_alignment_vec[int(name)] = float(matches[0])
+
+                # Compute the alignments between constants and tokens
+                const_alignment_vec = self.compute_alignments(question, const_dict)
 
                 concat_equation = ''
                 for equation in equation_system:
@@ -93,6 +93,14 @@ class BaseDataset(Dataset):
                 self.solutions.append(torch.tensor(solution))
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
+
+    @staticmethod
+    def compute_alignments(question, const_dict):
+        const_alignment_vec = torch.zeros(len(const_dict))
+        for name in const_dict.values():
+            matches = [i for i, x in enumerate(question) if x == name]
+            const_alignment_vec[int(name)] = float(matches[0])
+        return const_alignment_vec
 
     @staticmethod
     def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
@@ -141,7 +149,7 @@ class BaseDataset(Dataset):
             equation: the equation with variables replaced
             var_dict: the mapping of variables to variable tokens.
         """
-        variable_re = re.compile('[^0-9.()+\-*/^=]+')
+        variable_re = re.compile('[^()+\-*/^=]+')
 
         variables = reversed(list(variable_re.finditer(equation)))
         for match in variables:
@@ -155,7 +163,7 @@ class BaseDataset(Dataset):
             equation = equation[:match.start()] + var + equation[match.end():]
         return equation, var_dict
 
-    def create_vocabs_and_convert(self):
+    def create_vocabs(self):
         """
         Creates the index vocabularies for the data and converts self.questions and self.equations to
         be lists of tensors of indices instead of lists of lists of tokens.
@@ -165,6 +173,10 @@ class BaseDataset(Dataset):
         equation_corpus = list(chain.from_iterable(self.equations))
         self.tgt_vocab = VocabEntry.from_corpus(equation_corpus, len(equation_corpus), 1)
 
+        self.src_pad_token = self.src_vocab['<pad>']
+        self.tgt_pad_token = self.tgt_vocab['<pad>']
+
+    def convert(self):
         self.questions = [torch.tensor(question) for question in self.src_vocab.words2indices(self.questions)]
         self.equations = [torch.tensor(equation) for equation in self.tgt_vocab.words2indices(self.equations)]
 

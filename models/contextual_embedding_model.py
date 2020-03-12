@@ -29,7 +29,7 @@ class ContextualEmbeddingModel(nn.Module):
             for p in self.embedding_model.parameters():
                 p.requires_grad = False
 
-    def generate_embeddings(self, x: torch.LongTensor, mask: torch.FloatTensor) -> torch.FloatTensor:
+    def forward(self, x: torch.LongTensor, mask: torch.FloatTensor) -> torch.FloatTensor:
         """
         Args:
             x: Indices of the tokens within the model's voacbulary. Shape (batch x sequence_length)
@@ -42,6 +42,3 @@ class ContextualEmbeddingModel(nn.Module):
         # TODO: consider relative positional embeddings
         embeddings, _ = self.embedding_model(x, mask)
         return embeddings
-
-    def forward(self, x: torch.LongTensor, mask: torch.FloatTensor):
-        pass
