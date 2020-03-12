@@ -1,8 +1,8 @@
 import torch
-import numpy as np
 import json
 import re
 from itertools import chain
+from copy import deepcopy
 
 from torch.utils.data import Dataset
 from .vocab import VocabEntry
@@ -26,8 +26,6 @@ class BaseDataset(Dataset):
 
         self.create_dataset(names)
         self.create_vocabs()
-        import ipdb
-        ipdb.set_trace()
 
     def create_dataset(self, names: list):
         """
@@ -68,12 +66,13 @@ class BaseDataset(Dataset):
                 var_dict = {}
                 keep = True
                 for idx, equation in enumerate(equation_system):
+                    prev_size = len(const_dict)
                     equation, var_dict = self.replace_variables(equation, var_dict, var_label, const_dict)
 
                     equation, updated_consts = self.replace_constants(equation, const_dict)
                     # Drop the example if there are constants in the equation we didn't identify.
                     # TODO: Find a better way to process these.
-                    if len(updated_consts) != len(const_dict):
+                    if len(updated_consts) != prev_size:
                         keep = False
                     equation_system[idx] = list(equation)
 
@@ -159,6 +158,8 @@ class BaseDataset(Dataset):
             try:
                 if float(var_name) in const_dict:
                     continue
+                else:
+                    const_dict[var_name] = 0  # This example will be rejected
             except:
                 pass
             if var_name in var_dict:
