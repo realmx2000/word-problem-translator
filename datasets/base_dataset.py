@@ -17,6 +17,9 @@ class BaseDataset(Dataset):
         self.alignments = []
         self.solutions = []
         self.const_idxs = {}
+        self.var_dicts = []
+        self.const_dicts = []
+
         self.src_vocab = None
         self.tgt_vocab = None
         self.src_pad_token = None
@@ -80,7 +83,6 @@ class BaseDataset(Dataset):
                     continue
 
                 # Compute the alignments between constants and tokens
-                #const_alignment_vec = self.compute_alignments(question, const_dict)
                 alignment_dict = self.compute_alignments(question, const_dict)
 
                 concat_equation = ''
@@ -91,9 +93,10 @@ class BaseDataset(Dataset):
 
                 self.questions.append(question)
                 self.equations.append(concat_equation)
-                #self.alignments.append(const_alignment_vec)
                 self.alignments.append(alignment_dict)
                 self.solutions.append(torch.tensor(solution))
+                self.var_dicts.append(var_dict)
+                self.const_dicts.append(const_dict)
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
@@ -196,7 +199,8 @@ class BaseDataset(Dataset):
         self.equations = [torch.tensor(equation) for equation in self.tgt_vocab.words2indices(self.equations)]
 
     def __getitem__(self, idx):
-        return self.questions[idx], self.equations[idx], self.alignments[idx], self.solutions[idx]
+        return self.questions[idx], self.equations[idx], self.alignments[idx], \
+               self.solutions[idx], self.var_dicts[idx], self.const_dicts[idx]
 
     def __len__(self):
         return len(self.questions)
