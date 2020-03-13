@@ -7,10 +7,11 @@ from .copy import Copy
 
 class RNNModel(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, src_embed_dim, tgt_embed_dim, enc_hid_dim,
-                 dec_hid_dim, dropout, teacher_forcing_ratio, src_embed_model=None):
+                 dec_hid_dim, dropout, teacher_forcing_ratio, src_embed_model=None, const_mapping=None):
         super().__init__()
         self.teacher_forcing_ratio = teacher_forcing_ratio
         self.tgt_vocab_size = tgt_vocab_size
+        self.const_mapping = const_mapping
 
         # Encoder
         if src_embed_model is None:
@@ -31,7 +32,7 @@ class RNNModel(nn.Module):
         self.decoder = nn.GRU((enc_hid_dim * 2) + tgt_embed_dim, dec_hid_dim)
         self.dec_out = nn.Linear((enc_hid_dim * 2) + dec_hid_dim + tgt_embed_dim, tgt_vocab_size)
         self.dec_dropout = nn.Dropout(dropout)
-        self.softmax = nn.Softmax(dim=2)
+        self.softmax = nn.Softmax(dim=1)
 
         #Copy
         self.copy = Copy(enc_hid_dim * 2, enc_hid_dim * 2, tgt_embed_dim)
@@ -45,7 +46,7 @@ class RNNModel(nn.Module):
     def forward(self, x):
         questions, question_lengths = pad_packed_sequence(x[0])
         equations, equation_lengths = pad_packed_sequence(x[1])
-        alignments, alignment_lengths = pad_packed_sequence(x[2])
+        alignments = x[2]
 
         question_masks = torch.zeros_like(questions)
         for i, length in enumerate(question_lengths):
@@ -58,7 +59,7 @@ class RNNModel(nn.Module):
         enc_projection = self.enc_dropout(enc_projection)
 
         # Decoding
-        all_logits = torch.zeros(equations.shape[0], equations.shape[1], self.tgt_vocab_size)
+        all_probs = torch.zeros(equations.shape[0], equations.shape[1], self.tgt_vocab_size)
         prev_output = equations[0].unsqueeze(0)
         curr_hidden = enc_projection
         for idx in range(1, equations.shape[0]):
@@ -73,20 +74,27 @@ class RNNModel(nn.Module):
 
             # Decoder
             embedding = self._tgt_embedding_lookup(prev_output, None)
+            num_constants = max([len(x) for x in alignments])
+            token_attentions = torch.zeros((attention_scores.shape[0], num_constants))
+            for batch_idx in range(attention_scores.shape[0]):
+                att_scores = attention_scores[batch_idx, :, :].squeeze(0)
+                for token, aligns in alignments[batch_idx].items():
+                    token_attentions[batch_idx, token] = torch.index_select(att_scores, 0, aligns).sum()
+            copy_weights = token_attentions / token_attentions.sum(dim=1, keepdim=True)
 
-            #prob_copy = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))
-            #token_attn = torch.index_select(attention_scores.flatten(), 0, alignments.view(-1).long())
-            #token_attn = token_attn.view(-1, alignments.shape[0])
-            #token_attn_sum = torch.sum(token_attn, dim=1)
-            #copy_weight = token_attn / token_attn_sum # [batch size, num token length]
+            copy_probs = torch.zeros((attention_scores.shape[0], self.tgt_vocab_size))
+            for i in range(copy_weights.shape[0]):
+                copy_probs[:, self.const_mapping[i]] = copy_weights[:, i]
+
+            prob_gen = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))\
 
             decoder_input = torch.cat((embedding, weighted), dim=2)
             output, dec_hidden = self.decoder(decoder_input, enc_projection.unsqueeze(0))
 
             logits = self.dec_out(torch.cat((output.squeeze(0), weighted.squeeze(0), embedding.squeeze(0)), dim=1))
-            #print(logits)
             logits = self.dec_dropout(logits)
-            all_logits[idx,:,:] = logits
+            probs = self.softmax(logits)
+            all_probs[idx,:,:] = prob_gen * probs + (1 - prob_gen) * copy_probs
 
             # Create next state
             curr_hidden = dec_hidden.squeeze(0)
@@ -94,4 +102,4 @@ class RNNModel(nn.Module):
             prev_output = equations[idx] if teacher_force else logits.argmax(1)
             prev_output = prev_output.unsqueeze(0)
 
-        return self.softmax(all_logits), all_logits, equations
+        return all_probs, equations

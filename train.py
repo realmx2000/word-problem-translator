@@ -26,18 +26,20 @@ def train(model, dataloader, optimizer):
     loss_fn = nn.NLLLoss()
     for i, batch in enumerate(dataloader):
         optimizer.zero_grad()
-        probs, logits, equations = model.forward(batch)
-        probs = probs[1:].view(-1, logits.shape[-1])
+        probs, equations = model.forward(batch)
+        probs_flat = probs[1:].view(-1, probs.shape[-1])
         labels = equations[1:].view(-1)
-        loss = loss_fn(torch.log(probs), labels)
+        loss = loss_fn(torch.log(probs_flat), labels)
         loss.backward()
         #torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
 
-        preds = logits[1:].argmax(2).squeeze(1).tolist()
+        '''
+        preds = probs[1:].argmax(2).squeeze(1).tolist()
         labels_list = labels.tolist()
         print(' '.join(dataloader.dataset.tgt_vocab.indices2words(preds)))
         print(' '.join(dataloader.dataset.tgt_vocab.indices2words(labels_list)))
+        '''
 
         epoch_loss += loss.item()
     return epoch_loss / len(dataloader)
@@ -76,7 +78,7 @@ if __name__ == '__main__':
     dataset_file = args['--dataset']
     VERBOSE = True
 
-    ENC_EMB_DIM = 768
+    ENC_EMB_DIM = 256#768
     DEC_EMB_DIM = 256
     ENC_HID_DIM = 512
     DEC_HID_DIM = 512
@@ -84,13 +86,12 @@ if __name__ == '__main__':
     FORCING_RATIO = 1
     BATCH_SIZE = 1
 
-
     #dataset = BaseDataset([dataset_file])
     #dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
     dataset = BaseDataset([dataset_file])
     dataset.convert()
     dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
-    embedding_model = ContextualEmbeddingModel('bert', dataset.max_num_variables, dataset.max_num_constants)
+    #embedding_model = ContextualEmbeddingModel('bert', dataset.max_num_variables, dataset.max_num_constants)
 
     '''
     print(dataset.questions)
@@ -111,9 +112,10 @@ if __name__ == '__main__':
                     DEC_HID_DIM,
                     DROPOUT,
                     FORCING_RATIO,
-                     src_embed_model=embedding_model)
+                    src_embed_model=None,
+                    const_mapping=dataset.const_idxs)
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-3) # For RNN - 1e-2
+    optimizer = optim.Adam(model.parameters(), lr=1e-2) # For RNN - 1e-2
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)

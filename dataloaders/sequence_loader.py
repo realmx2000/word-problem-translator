@@ -34,6 +34,6 @@ class SequenceLoader(DataLoader):
 
         packed_questions = self.pack_and_pad(questions, self.pad_val_src)
         packed_equations = self.pack_and_pad(equations, self.pad_val_tgt)
-        packed_alignments = self.pack_and_pad(alignments, -1)
+        #packed_alignments = self.pack_and_pad(alignments, -1)
         packed_solutions = self.pack_and_pad(solutions, float('nan'))
-        return packed_questions, packed_equations, packed_alignments
+        return packed_questions, packed_equations, alignments

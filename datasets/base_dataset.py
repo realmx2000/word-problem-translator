@@ -2,7 +2,6 @@ import torch
 import json
 import re
 from itertools import chain
-from copy import deepcopy
 
 from torch.utils.data import Dataset
 from .vocab import VocabEntry
@@ -17,6 +16,7 @@ class BaseDataset(Dataset):
         self.equations = []
         self.alignments = []
         self.solutions = []
+        self.const_idxs = {}
         self.src_vocab = None
         self.tgt_vocab = None
         self.src_pad_token = None
@@ -80,7 +80,8 @@ class BaseDataset(Dataset):
                     continue
 
                 # Compute the alignments between constants and tokens
-                const_alignment_vec = self.compute_alignments(question, const_dict)
+                #const_alignment_vec = self.compute_alignments(question, const_dict)
+                alignment_dict = self.compute_alignments(question, const_dict)
 
                 concat_equation = ''
                 for equation in equation_system:
@@ -90,18 +91,21 @@ class BaseDataset(Dataset):
 
                 self.questions.append(question)
                 self.equations.append(concat_equation)
-                self.alignments.append(const_alignment_vec)
+                #self.alignments.append(const_alignment_vec)
+                self.alignments.append(alignment_dict)
                 self.solutions.append(torch.tensor(solution))
                 self.max_num_constants = max(self.max_num_constants, len(const_dict))
                 self.max_num_variables = max(self.max_num_variables, len(var_dict))
 
     @staticmethod
     def compute_alignments(question, const_dict):
-        const_alignment_vec = torch.zeros(len(const_dict))
+        #const_alignment_vec = torch.zeros(len(const_dict))
+        alignment_dict = {}
         for name in const_dict.values():
             matches = [i for i, x in enumerate(question) if x == name]
-            const_alignment_vec[int(name)] = float(matches[0])
-        return const_alignment_vec
+            #const_alignment_vec[int(name)] = float(matches[0])
+            alignment_dict[int(name)] = torch.tensor(matches).long()
+        return alignment_dict#const_alignment_vec
 
     @staticmethod
     def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
@@ -183,6 +187,9 @@ class BaseDataset(Dataset):
 
         self.src_pad_token = self.src_vocab['<pad>']
         self.tgt_pad_token = self.tgt_vocab['<pad>']
+
+        for const in range(self.max_num_constants):
+            self.const_idxs[const] = self.tgt_vocab[str(const)]
 
     def convert(self):
         self.questions = [torch.tensor(question) for question in self.src_vocab.words2indices(self.questions)]
