@@ -14,6 +14,7 @@ import torch.optim as optim
 import torch
 import time
 import math
+from tqdm import tqdm
 
 from docopt import docopt
 
@@ -24,7 +25,9 @@ def train(model, dataloader, optimizer):
     epoch_loss = 0
     epoch_acc = 0
     loss_fn = nn.NLLLoss()
-    for i, batch in enumerate(dataloader):
+    total = len(dataloader.dataset) // dataloader.batch_size
+    pbar = tqdm(enumerate(dataloader), total=total)
+    for i, batch in pbar:
         optimizer.zero_grad()
         probs, equations = model.forward(batch)
         probs_flat = probs[1:].view(-1, probs.shape[-1])
@@ -42,6 +45,8 @@ def train(model, dataloader, optimizer):
         '''
 
         epoch_loss += loss.item()
+        pbar.set_description("Loss: {:3f}".format(loss))
+        pbar.refresh()
     return epoch_loss / len(dataloader)
 
 def validate(model, dataloader, VERBOSE=False):
@@ -84,7 +89,7 @@ if __name__ == '__main__':
     DEC_HID_DIM = 512
     DROPOUT = 0
     FORCING_RATIO = 1
-    BATCH_SIZE = 1
+    BATCH_SIZE = 8
 
     #dataset = BaseDataset([dataset_file])
     #dataloader = SequenceLoader(dataset, BATCH_SIZE, 'train')
@@ -115,7 +120,7 @@ if __name__ == '__main__':
                     src_embed_model=None,
                     const_mapping=dataset.const_idxs)
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-2) # For RNN - 1e-2
+    optimizer = optim.Adam(model.parameters(), lr=1e-3) # For RNN - 1e-2
 
     def count_parameters(model):
         return sum(p.numel() for p in model.parameters() if p.requires_grad)

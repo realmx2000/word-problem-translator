@@ -16,8 +16,7 @@ class SequenceLoader(DataLoader):
 
     def pack_and_pad(self, sequence, pad_val):
         lengths = torch.tensor([item.shape[0] for item in sequence])
-        batch = [torch.tensor(item) for item in sequence]
-        batch = torch.nn.utils.rnn.pad_sequence(batch, padding_value=pad_val)
+        batch = torch.nn.utils.rnn.pad_sequence(sequence, padding_value=pad_val)
         packed = pack_padded_sequence(batch, lengths, enforce_sorted=False)
         return packed
 

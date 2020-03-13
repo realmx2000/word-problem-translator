@@ -83,7 +83,7 @@ class RNNModel(nn.Module):
             copy_weights = token_attentions / token_attentions.sum(dim=1, keepdim=True)
 
             copy_probs = torch.zeros((attention_scores.shape[0], self.tgt_vocab_size))
-            for i in range(copy_weights.shape[0]):
+            for i in range(copy_weights.shape[1]):
                 copy_probs[:, self.const_mapping[i]] = copy_weights[:, i]
 
             prob_gen = self.copy(torch.cat((enc_projection, curr_hidden, embedding.squeeze(0)), dim=1))\
