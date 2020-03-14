@@ -12,6 +12,7 @@ class BaseDataset(Dataset):
         Args:
             names: Names of the JSON files to load as the dataset.
         """
+        super().__init__()
         self.questions = []
         self.equations = []
         self.alignments = []
@@ -107,11 +108,12 @@ class BaseDataset(Dataset):
         for name in const_dict.values():
             matches = [i for i, x in enumerate(question) if x == name]
             #const_alignment_vec[int(name)] = float(matches[0])
-            alignment_dict[int(name)] = torch.tensor(matches).long()
+            idx = ord('m') - ord(name)
+            alignment_dict[idx] = torch.tensor(matches).long()
         return alignment_dict#const_alignment_vec
 
     @staticmethod
-    def replace_constants(string: str, const_dict: dict, const_label: int=0) -> dict:
+    def replace_constants(string: str, const_dict: dict, const_label: str='m') -> dict:
         '''
         Replace all numeric constants in the string with number tokens.
         Args:
@@ -134,8 +136,8 @@ class BaseDataset(Dataset):
             if const_val in const_dict:
                 constant =  const_dict[const_val]
             else:
-                constant = str(int(const_label))
-                const_label += 1
+                constant = const_label
+                const_label = chr(ord(const_label) + 1)
                 const_dict[const_val] = constant
             if question_mode:
                 string = string[:match.start() + 1] + constant + string[match.end() - 1:]
